@@ -6,9 +6,10 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
-from   torch.utils.trainer import Trainer
-from   torch.utils.trainer.plugins.logger import Logger
-from   torch.utils.trainer.plugins.progress import ProgressMonitor
+from   trainer import Trainer
+from   trainer.plugins.logger import Logger
+from   trainer.plugins.visdom_logger import VisdomLogger
+from   trainer.plugins.progress import ProgressMonitor
 
 class ShallowMLP(nn.Module):
     def __init__(self, shape, force_no_cuda=False):
@@ -69,7 +70,7 @@ if __name__=="__main__":
         dataset=dataset)
     
     progress_plug = ProgressMonitor()
-    logger_plug = Logger(["progress"], [(2, 'iteration')])
+    logger_plug = VisdomLogger(["progress"], [(2, 'iteration')])
 
     train.register_plugin(progress_plug)
     train.register_plugin(logger_plug)
