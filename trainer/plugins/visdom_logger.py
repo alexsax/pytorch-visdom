@@ -39,11 +39,20 @@ class BaseVisdomLogger(Logger):
                     env=self.env,
                     opts=self.opts)
         return _viz_logger
-# class VisdomImageLogger(BaseVisdomLogger):
+
+class VisdomLogger(BaseVisdomLogger):
+    
+    def __init__(self, plot_type, fields, interval=None, win=None, env=None, opts={}):
+        super(VisdomLogger, self).__init__(fields, interval, win, env, opts)
+
+        self.viz_logger = self._viz_prototype(getattr(self.viz, plot_type))
+
+    def log(self, *args):
+        self.viz_logger(args)
 
 class VisdomPlotLogger(BaseVisdomLogger):
     
-    def __init__(self, fields, interval=None, opts={}):
+    def __init__(self, plot_type, fields, interval=None, win=None, env=None, opts={}):
         '''
             opts: dict of opts. May specify the plot type with 
                     plot_type \in {SCATTER, LINE}
@@ -55,30 +64,34 @@ class VisdomPlotLogger(BaseVisdomLogger):
                 >>> train.register_plugin(progress_m)
                 >>> train.register_plugin(scatter_logger)
         '''
-        super(VisdomPlotLogger, self).__init__(fields, interval)
+        super(VisdomPlotLogger, self).__init__(fields, interval, win, env, opts)
         valid_plot_types = {
             "SCATTER": self.viz.scatter, 
             "LINE": self.viz.line }
 
         # Set chart type
         if 'plot_type' in self.opts:
-            if self.opts['plot_type'] not in valid_plot_types.keys():
+            if plot_type not in valid_plot_types.keys():
                 raise ValueError("plot_type \'{}\' not found. Must be one of {}".format(
-                    self.opts['plot_type'], valid_plot_types.keys()))
-            self.chart = valid_plot_types[self.opts['plot_type']]
+                    plot_type, valid_plot_types.keys()))
+            self.chart = valid_plot_types[plot_type]
         else:
             self.chart = self.viz.scatter
 
     def log(self, *args):
         if self.win is not None:
+            if len(args) != 2:
+                raise ValueError("When logging to {}, must pass in x and y values (and optionally z).".format(
+                    type(self)))
+            x, y = args
             self.viz.updateTrace(
-                X=np.array([args[0]]),
-                Y=np.array([args[1]]),
+                X=np.array([x]),
+                Y=np.array([y]),
                 win=self.win,
                 env=self.env,
                 opts=self.opts)
         else:
-            self.win = self.viz.scatter(
+            self.win = self.chart(
                 X=np.array([args]),
                 win=self.win,
                 env=self.env,
@@ -100,8 +113,8 @@ class VisdomTextLogger(BaseVisdomLogger):
     '''
     valid_update_types = ['REPLACE', 'APPEND']
 
-    def __init__(self, fields, interval=None, opts={}, update_type=valid_update_types[0]):
-        super(VisdomTextLogger, self).__init__(fields, interval)
+    def __init__(self, fields, interval=None, win=None, env=None, opts={}, update_type=valid_update_types[0]):
+        super(VisdomTextLogger, self).__init__(fields, interval, win, env, opts)
         self.text = ''
 
         if update_type not in self.valid_update_types:
@@ -110,27 +123,15 @@ class VisdomTextLogger(BaseVisdomLogger):
 
         self.viz_logger = self._viz_prototype(self.viz.text)
 
-        # Use specific window
-        if self.win is None:
-            self.win = self.viz.text(
-                self.text, 
-                win=self.win,
-                env=self.env,
-                opts=self.opts)
-            print("Win: ", self.win)
 
-    def log(self, *args):
-        text = args[0]
+    def log(self, msg, *args):
+        text = msg
         if self.update_type == 'APPEND':
             self.text = "<br>".join([self.text, text])
         else:
             self.text = text
         self.viz_logger([self.text])
-        # self.viz.text(
-        #     self.text, 
-        #     win=self.win,
-        #     env=self.env,
-        #     opts=self.opts)
+
         
 
 class TestVisdomLogger(BaseVisdomLogger):

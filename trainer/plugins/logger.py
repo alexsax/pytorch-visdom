@@ -1,6 +1,11 @@
 from collections import defaultdict
+from six import string_types
 from .plugin import Plugin
 
+def is_sequence(arg):
+    return (not hasattr(arg, "strip") and
+            hasattr(arg, "__getitem__") or
+            hasattr(arg, "__iter__"))
 
 class Logger(Plugin):
     ''' 
@@ -23,6 +28,13 @@ class Logger(Plugin):
             usage:
                 logger = Logger(["progress"], [(2, 'iteration')])
         '''
+        if not is_sequence(fields):
+            raise ValueError("'fields' must be a sequence of strings, not {}".format(type(fields)))
+
+        for i, v in enumerate(fields):
+            if not isinstance(v, string_types):
+                raise ValueError("Element {} of 'fields' ({}) must be a string.".format(
+                    i, v ))
         if interval is None:
             interval = [(1, 'iteration'), (1, 'epoch')]
         super(Logger, self).__init__(interval)
