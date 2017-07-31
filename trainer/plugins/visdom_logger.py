@@ -10,13 +10,136 @@ import getpass
 from sys import platform as _platform
 from six.moves import urllib
 
-class VisdomLogger(Logger):
 
-    def __init__(self, fields, interval=None,  **vizargs):
+class BaseVisdomLogger(Logger):
+    ''' 
+        The base class for logging output to Visdom. 
+
+        ***THIS CLASS IS ABSTRACT AND MUST BE SUBCLASSED***
+    '''
+    _viz = visdom.Visdom()
+
+    @property
+    def viz(self):
+        return type(self)._viz
+
+    def __init__(self, fields, interval=None, win=None, env=None, opts={}):
+        super(BaseVisdomLogger, self).__init__(fields, interval)
+        self.win = win
+        self.env = env
+        self.opts = opts
+
+    def log(self, *args):
+        raise NotImplementedError("log not implemented for BaseVisdomLogger, which is an abstract class.")
+
+    def _viz_prototype(self, vis_fn):
+        def _viz_logger(*args):
+            self.win = vis_fn(args, 
+                    win=self.win,
+                    env=self.env,
+                    opts=self.opts)
+        return _viz_logger
+# class VisdomImageLogger(BaseVisdomLogger):
+
+class VisdomPlotLogger(BaseVisdomLogger):
+    
+    def __init__(self, fields, interval=None, opts={}):
+        '''
+            opts: dict of opts. May specify the plot type with 
+                    plot_type \in {SCATTER, LINE}
+
+            Examples::
+                >>> train = Trainer(model, criterion, optimizer, dataset)
+                >>> progress_m = ProgressMonitor()
+                >>> scatter_logger = VisdomScatterLogger(["progress.samples_used", "progress.percent"], [(2, 'iteration')])
+                >>> train.register_plugin(progress_m)
+                >>> train.register_plugin(scatter_logger)
+        '''
+        super(VisdomPlotLogger, self).__init__(fields, interval)
+        valid_plot_types = {
+            "SCATTER": self.viz.scatter, 
+            "LINE": self.viz.line }
+
+        # Set chart type
+        if 'plot_type' in self.opts:
+            if self.opts['plot_type'] not in valid_plot_types.keys():
+                raise ValueError("plot_type \'{}\' not found. Must be one of {}".format(
+                    self.opts['plot_type'], valid_plot_types.keys()))
+            self.chart = valid_plot_types[self.opts['plot_type']]
+        else:
+            self.chart = self.viz.scatter
+
+    def log(self, *args):
+        if self.win is not None:
+            self.viz.updateTrace(
+                X=np.array([args[0]]),
+                Y=np.array([args[1]]),
+                win=self.win,
+                env=self.env,
+                opts=self.opts)
+        else:
+            self.win = self.viz.scatter(
+                X=np.array([args]),
+                win=self.win,
+                env=self.env,
+                opts=self.opts)
+
+    def _log_all(self, log_fields, prefix=None, suffix=None, require_dict=False):
+        results = []
+        for field_idx, field in enumerate(self.fields):
+            parent, stat = None, self.trainer.stats
+            for f in field:
+                parent, stat = stat, stat[f]
+            results.append(stat)
+        self.log(*results)
+
+
+class VisdomTextLogger(BaseVisdomLogger):
+    '''
+        Creates a text window in visdom and logs output to it. 
+    '''
+    valid_update_types = ['REPLACE', 'APPEND']
+
+    def __init__(self, fields, interval=None, opts={}, update_type=valid_update_types[0]):
+        super(VisdomTextLogger, self).__init__(fields, interval)
+        self.text = ''
+
+        if update_type not in self.valid_update_types:
+            raise ValueError("update type '{}' not found. Must be one of {}".format(update_type, self.valid_update_types))
+        self.update_type = update_type
+
+        self.viz_logger = self._viz_prototype(self.viz.text)
+
+        # Use specific window
+        if self.win is None:
+            self.win = self.viz.text(
+                self.text, 
+                win=self.win,
+                env=self.env,
+                opts=self.opts)
+            print("Win: ", self.win)
+
+    def log(self, *args):
+        text = args[0]
+        if self.update_type == 'APPEND':
+            self.text = "<br>".join([self.text, text])
+        else:
+            self.text = text
+        self.viz_logger([self.text])
+        # self.viz.text(
+        #     self.text, 
+        #     win=self.win,
+        #     env=self.env,
+        #     opts=self.opts)
+        
+
+class TestVisdomLogger(BaseVisdomLogger):
+    
+    def __init__(self, fields, interval=None):
         super(VisdomLogger, self).__init__(fields, interval)
-        self.vis = visdom.Visdom()
-        self.vizargs = vizargs
-        viz = self.vis
+
+    def log(self, *args):
+        viz = self.viz
         textwindow = viz.text('Hello World!')
 
         # video demo:
@@ -282,6 +405,3 @@ class VisdomLogger(Logger):
             viz.line(Y=torch.Tensor([[0., 0.], [1., 1.]]))
         except ImportError:
             print('Skipped PyTorch example')
-    
-    def log(self, msg):
-        self.vis.text(msg)

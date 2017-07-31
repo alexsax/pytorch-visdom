@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from   trainer import Trainer
 from   trainer.plugins.logger import Logger
-from   trainer.plugins.visdom_logger import VisdomLogger
+from   trainer.plugins.visdom_logger import *
 from   trainer.plugins.progress import ProgressMonitor
 
 class ShallowMLP(nn.Module):
@@ -70,8 +70,12 @@ if __name__=="__main__":
         dataset=dataset)
     
     progress_plug = ProgressMonitor()
-    logger_plug = VisdomLogger(["progress"], [(2, 'iteration')])
+    logger = Logger(["progress"], [(2, 'iteration')])
+    text_logger = VisdomTextLogger(["progress"], [(2, 'iteration')], update_type='APPEND')
+    scatter_logger = VisdomPlotLogger(["progress.samples_used", "progress.percent"], [(2, 'iteration')])
 
     train.register_plugin(progress_plug)
-    train.register_plugin(logger_plug)
+    train.register_plugin(logger)
+    train.register_plugin(text_logger)
+    train.register_plugin(scatter_logger)
     train.run()
