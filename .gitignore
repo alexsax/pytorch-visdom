@@ -1,1 +1,2 @@
 *.pyc
+trainer/plugins/visdom_sample_logger.py
