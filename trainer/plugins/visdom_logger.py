@@ -17,6 +17,12 @@ class BaseVisdomLogger(Logger):
         The base class for logging output to Visdom. 
 
         ***THIS CLASS IS ABSTRACT AND MUST BE SUBCLASSED***
+
+        Note that the Visdom server is designed to also handle a server architecture, 
+        and therefore the Visdom server must be running at all times. The server can 
+        be started with 
+        $ python -m visdom.server
+        and you probably want to run it from screen or tmux. 
     '''
     _viz = visdom.Visdom()
 
@@ -57,6 +63,38 @@ class BaseVisdomLogger(Logger):
             results.append(stat)
         self.log(*results)
 
+    def epoch(self, epoch_idx):
+        super(BaseVisdomLogger, self).epoch(epoch_idx)
+        print("hi")
+        self.viz.save()
+
+class VisdomSaver(Plugin):
+    ''' Serialize the state of the Visdom server to disk. 
+        Unless you have a fancy schedule, where different are saved with different frequencies,
+        you probably only need one of these. 
+    '''
+
+    def __init__(self, envs=None, interval=[(1, 'epoch')]):
+        super(VisdomSaver, self).__init__(interval)
+        self.envs = envs
+        self.viz = visdom.Visdom()
+
+    def register(self, trainer):
+        self.trainer = trainer
+
+    def save(self):
+        self.viz.save(self.envs)
+    
+    def batch(self, *args, **kwargs):
+        self.save()
+
+    def iteration(self, *args, **kwargs):
+        self.save()
+
+    def epoch(self, *args, **kwargs):
+        self.save()
+    
+    
 
 class VisdomLogger(BaseVisdomLogger):
     '''

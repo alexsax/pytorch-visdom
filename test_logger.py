@@ -61,6 +61,7 @@ class SimpleDataset(object):
         return self.n
 
 if __name__=="__main__":
+    env = 'samples'
     force_no_cuda = True
     model = ShallowMLP((1,5,1), force_no_cuda=force_no_cuda)
     dataset = SimpleDataset(5, force_no_cuda)
@@ -80,12 +81,16 @@ if __name__=="__main__":
     # Loggers are a special type of plugin which, surprise, logs the stats
     logger = Logger(["progress"], [(2, 'iteration')])
     text_logger    = VisdomTextLogger(["progress"], [(2, 'iteration')], update_type='APPEND',
-                        opts=dict(title='Example logging'))
+                        env=env, opts=dict(title='Example logging'))
     scatter_logger = VisdomPlotLogger('scatter', ["progress.samples_used", "progress.percent"], [(1, 'iteration')],
-                        opts=dict(title='Percent Done vs Samples Used'))
+                        env=env, opts=dict(title='Percent Done vs Samples Used'))
     hist_logger    = VisdomLogger('histogram', ["random.data"], [(2, 'iteration')],
-                        opts=dict(title='Random!', numbins=20))
-    image_logger   = VisdomLogger('image', ["image.data"], [(2, 'iteration')])
+                        env=env, opts=dict(title='Random!', numbins=20))
+    image_logger   = VisdomLogger('image', ["image.data"], [(2, 'iteration')], env=env)
+
+
+    # Create a saver
+    saver = VisdomSaver(envs=[env])
 
     # Register the plugins with the trainer
     train.register_plugin(progress_plug)
@@ -97,5 +102,7 @@ if __name__=="__main__":
     train.register_plugin(scatter_logger)
     train.register_plugin(hist_logger)
     train.register_plugin(image_logger)
+
+    train.register_plugin(saver)
 
     train.run()
