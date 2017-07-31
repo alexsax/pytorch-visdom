@@ -1,3 +1,4 @@
+""" Logging to Visdom server """
 from collections import defaultdict
 import visdom
 from .plugin import Plugin
@@ -29,35 +30,80 @@ class BaseVisdomLogger(Logger):
         self.env = env
         self.opts = opts
 
-    def log(self, *args):
+    def log(self, *args, **kwargs):
         raise NotImplementedError("log not implemented for BaseVisdomLogger, which is an abstract class.")
 
     def _viz_prototype(self, vis_fn):
-        def _viz_logger(*args):
-            self.win = vis_fn(args, 
+        ''' Outputs a function which will log the arguments to Visdom in an appropriate way.
+
+            Args:
+                vis_fn: A function, such as self.vis.image
+        '''
+        def _viz_logger(*args, **kwargs):
+            self.win = vis_fn(*args, 
                     win=self.win,
                     env=self.env,
-                    opts=self.opts)
+                    opts=self.opts, 
+                    **kwargs)
         return _viz_logger
 
+    def _log_all(self, log_fields, prefix=None, suffix=None, require_dict=False):
+        ''' Gathers the stats form self.trainer.stats and passes them into self.log, as a list '''
+        results = []
+        for field_idx, field in enumerate(self.fields):
+            parent, stat = None, self.trainer.stats
+            for f in field:
+                parent, stat = stat, stat[f]
+            results.append(stat)
+        self.log(*results)
+
+
 class VisdomLogger(BaseVisdomLogger):
-    
+    '''
+        A generic Visdom class that works with the majority of Visdom plot types.
+
+
+    '''
+
     def __init__(self, plot_type, fields, interval=None, win=None, env=None, opts={}):
+        '''
+            Args:
+                plot_type: The name of the plot type, in Visdom
+                fields: The fields to log. May either be the name of some stat (e.g. ProgressMonitor)
+                    will have `stat_name='progress'`, in which case all of the fields under 
+                    `log_HOOK_fields` will be logged. Finer-grained control can be specified
+                    by using individual fields such as `progress.percent`. 
+                interval: A List of 2-tuples where each tuple contains (k, HOOK_TIME). 
+                    k (int): The logger will be called every 'k' HOOK_TIMES
+                    HOOK_TIME (string): The logger will be called at the given hook
+
+            Examples:
+                >>> # Image example
+                >>> img_to_use = skimage.data.coffee().swapaxes(0,2).swapaxes(1,2)
+                >>> image_plug = ConstantMonitor(img_to_use, "image")
+                >>> image_logger   = VisdomLogger('image', ["image.data"], [(2, 'iteration')])
+
+                >>> # Histogram example
+                >>> hist_plug = ConstantMonitor(np.random.rand(10000), "random")
+                >>> hist_logger = VisdomLogger('histogram', ["random.data"], [(2, 'iteration')], opts=dict(title='Random!', numbins=20))
+        '''
         super(VisdomLogger, self).__init__(fields, interval, win, env, opts)
+        self.plot_type = plot_type
+        self.chart = getattr(self.viz, plot_type)
+        self.viz_logger = self._viz_prototype(self.chart)
 
-        self.viz_logger = self._viz_prototype(getattr(self.viz, plot_type))
+    def log(self, *args, **kwargs):
+        self.viz_logger(*args, **kwargs)
 
-    def log(self, *args):
-        self.viz_logger(args)
 
 class VisdomPlotLogger(BaseVisdomLogger):
     
     def __init__(self, plot_type, fields, interval=None, win=None, env=None, opts={}):
         '''
-            opts: dict of opts. May specify the plot type with 
-                    plot_type \in {SCATTER, LINE}
+            Args:
+                plot_type: {scatter, line}
 
-            Examples::
+            Examples:
                 >>> train = Trainer(model, criterion, optimizer, dataset)
                 >>> progress_m = ProgressMonitor()
                 >>> scatter_logger = VisdomScatterLogger(["progress.samples_used", "progress.percent"], [(2, 'iteration')])
@@ -66,8 +112,8 @@ class VisdomPlotLogger(BaseVisdomLogger):
         '''
         super(VisdomPlotLogger, self).__init__(fields, interval, win, env, opts)
         valid_plot_types = {
-            "SCATTER": self.viz.scatter, 
-            "LINE": self.viz.line }
+            "scatter": self.viz.scatter, 
+            "line": self.viz.line }
 
         # Set chart type
         if 'plot_type' in self.opts:
@@ -78,7 +124,7 @@ class VisdomPlotLogger(BaseVisdomLogger):
         else:
             self.chart = self.viz.scatter
 
-    def log(self, *args):
+    def log(self, *args, **kwargs):
         if self.win is not None:
             if len(args) != 2:
                 raise ValueError("When logging to {}, must pass in x and y values (and optionally z).".format(
@@ -97,23 +143,33 @@ class VisdomPlotLogger(BaseVisdomLogger):
                 env=self.env,
                 opts=self.opts)
 
-    def _log_all(self, log_fields, prefix=None, suffix=None, require_dict=False):
-        results = []
-        for field_idx, field in enumerate(self.fields):
-            parent, stat = None, self.trainer.stats
-            for f in field:
-                parent, stat = stat, stat[f]
-            results.append(stat)
-        self.log(*results)
-
 
 class VisdomTextLogger(BaseVisdomLogger):
     '''
         Creates a text window in visdom and logs output to it. 
+        The output can be formatted with fancy HTML, and it new output can 
+            be set to 'append' or 'replace' mode.
     '''
     valid_update_types = ['REPLACE', 'APPEND']
 
     def __init__(self, fields, interval=None, win=None, env=None, opts={}, update_type=valid_update_types[0]):
+        '''
+            Args:
+                fields: The fields to log. May either be the name of some stat (e.g. ProgressMonitor)
+                    will have `stat_name='progress'`, in which case all of the fields under 
+                    `log_HOOK_fields` will be logged. Finer-grained control can be specified
+                    by using individual fields such as `progress.percent`. 
+                interval: A List of 2-tuples where each tuple contains (k, HOOK_TIME). 
+                    k (int): The logger will be called every 'k' HOOK_TIMES
+                    HOOK_TIME (string): The logger will be called at the given hook
+                update_type: One of {'REPLACE', 'APPEND'}. Default 'REPLACE'.
+
+            Examples:
+                >>> progress_m = ProgressMonitor()
+                >>> logger = VisdomTextLogger(["progress"], [(2, 'iteration')])
+                >>> train.register_plugin(progress_m)
+                >>> train.register_plugin(logger)
+        '''
         super(VisdomTextLogger, self).__init__(fields, interval, win, env, opts)
         self.text = ''
 
@@ -124,20 +180,40 @@ class VisdomTextLogger(BaseVisdomLogger):
         self.viz_logger = self._viz_prototype(self.viz.text)
 
 
-    def log(self, msg, *args):
+    def log(self, msg, *args, **kwargs):
         text = msg
-        if self.update_type == 'APPEND':
+        if self.update_type == 'APPEND' and self.text:
             self.text = "<br>".join([self.text, text])
         else:
             self.text = text
         self.viz_logger([self.text])
 
-        
+    def _log_all(self, log_fields, prefix=None, suffix=None, require_dict=False):
+        results = []
+        for field_idx, field in enumerate(self.fields):
+            parent, stat = None, self.trainer.stats
+            for f in field:
+                parent, stat = stat, stat[f]
+            name, output = self._gather_outputs(field, log_fields,
+                                                parent, stat, require_dict)
+            if not output:
+                continue
+            self._align_output(field_idx, output)
+            results.append((name, output))
+        if not results:
+            return
+        output = self._join_results(results)
+        if prefix is not None:
+            self.log(prefix)
+        self.log(output)
+        if suffix is not None:
+            self.log(suffix)
 
-class TestVisdomLogger(BaseVisdomLogger):
+
+class VisdomSampleLogger(BaseVisdomLogger):
     
     def __init__(self, fields, interval=None):
-        super(VisdomLogger, self).__init__(fields, interval)
+        super(VisdomSampleLogger, self).__init__(fields, interval)
 
     def log(self, *args):
         viz = self.viz

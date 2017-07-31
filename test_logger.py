@@ -11,6 +11,8 @@ from   trainer.plugins.logger import Logger
 from   trainer.plugins.visdom_logger import *
 from   trainer.plugins.progress import ProgressMonitor
 from   trainer.plugins.random import RandomMonitor
+from   trainer.plugins.constant import ConstantMonitor
+from   skimage import data
 
 class ShallowMLP(nn.Module):
     def __init__(self, shape, force_no_cuda=False):
@@ -70,25 +72,30 @@ if __name__=="__main__":
         optimizer=optimizer, 
         dataset=dataset)
     
+    # Plugins produce statistics
     progress_plug = ProgressMonitor()
     random_plug = RandomMonitor(10000)
+    image_plug = ConstantMonitor(data.coffee().swapaxes(0,2).swapaxes(1,2), "image")
 
-
+    # Loggers are a special type of plugin which, surprise, logs the stats
     logger = Logger(["progress"], [(2, 'iteration')])
-    text_logger = VisdomTextLogger(["progress"], [(2, 'iteration')], update_type='APPEND')
-    scatter_logger = VisdomPlotLogger('SCATTER', ["progress.samples_used", "progress.percent"], [(2, 'iteration')])
-    hist_logger = VisdomLogger(
-        ["random.data"], 
-        [(2, 'iteration')],
-        opts=dict(numbins=20))
+    text_logger    = VisdomTextLogger(["progress"], [(2, 'iteration')], update_type='APPEND',
+                        opts=dict(title='Example logging'))
+    scatter_logger = VisdomPlotLogger('scatter', ["progress.samples_used", "progress.percent"], [(1, 'iteration')],
+                        opts=dict(title='Percent Done vs Samples Used'))
+    hist_logger    = VisdomLogger('histogram', ["random.data"], [(2, 'iteration')],
+                        opts=dict(title='Random!', numbins=20))
+    image_logger   = VisdomLogger('image', ["image.data"], [(2, 'iteration')])
 
-# viz.histogram(X=np.random.rand(10000), opts=dict(numbins=20))
-
+    # Register the plugins with the trainer
     train.register_plugin(progress_plug)
     train.register_plugin(random_plug)
+    train.register_plugin(image_plug)
 
     train.register_plugin(logger)
     train.register_plugin(text_logger)
     train.register_plugin(scatter_logger)
     train.register_plugin(hist_logger)
+    train.register_plugin(image_logger)
+
     train.run()

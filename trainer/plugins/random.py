@@ -1,3 +1,4 @@
+import numpy as np
 from .plugin import Plugin
 
 
@@ -20,7 +21,7 @@ class RandomMonitor(Plugin):
 
     def iteration(self, iteration, input, *args):
         stats = self.trainer.stats.setdefault(self.stat_name, {})
-        stats['data'] += np.random.rand(n)
+        stats['data'] += np.random.rand(self.n)
 
     def epoch(self, *args):
         stats = self.trainer.stats.setdefault(self.stat_name, {})
