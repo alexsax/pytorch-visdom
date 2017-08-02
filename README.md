@@ -40,3 +40,12 @@ This repo contains a collection of tools for easily logging to Visdom, and for r
 
     train.register_plugin(saver)
 ```
+
+
+---
+## References
+ The trainer and plugin framework is taken, with slight modifications, from the main PyTorch branch. Ideally, the functionality from this repo can be pulled back into PyTorch so it is more easily available, and can be used with some existing great libraries like 
+ - [TNT](http://github.com/PyTorch/tnt)
+ - [TorchSample](http://github.com/ncullen93/torchsample)
+ 
+ Also available is [Inferno](https://github.com/nasimrahaman/inferno) which is under active development.

@@ -1,15 +1,10 @@
 """ Logging to Visdom server """
-from collections import defaultdict
-import visdom
-from .plugin import Plugin
-from .logger import Logger
-
+from   collections import defaultdict
 import numpy as np
-import math
-import os.path
-import getpass
-from sys import platform as _platform
-from six.moves import urllib
+import visdom
+
+from   .plugin import Plugin
+from   .logger import Logger
 
 
 class BaseVisdomLogger(Logger):
@@ -65,7 +60,6 @@ class BaseVisdomLogger(Logger):
 
     def epoch(self, epoch_idx):
         super(BaseVisdomLogger, self).epoch(epoch_idx)
-        print("hi")
         self.viz.save()
 
 class VisdomSaver(Plugin):
@@ -78,29 +72,19 @@ class VisdomSaver(Plugin):
         super(VisdomSaver, self).__init__(interval)
         self.envs = envs
         self.viz = visdom.Visdom()
+        for _, name in interval:
+            setattr(self, name, self.save)
 
     def register(self, trainer):
         self.trainer = trainer
 
-    def save(self):
+    def save(self, *args, **kwargs):
         self.viz.save(self.envs)
-    
-    def batch(self, *args, **kwargs):
-        self.save()
-
-    def iteration(self, *args, **kwargs):
-        self.save()
-
-    def epoch(self, *args, **kwargs):
-        self.save()
-    
     
 
 class VisdomLogger(BaseVisdomLogger):
     '''
         A generic Visdom class that works with the majority of Visdom plot types.
-
-
     '''
 
     def __init__(self, plot_type, fields, interval=None, win=None, env=None, opts={}):

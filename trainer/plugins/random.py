@@ -1,5 +1,5 @@
 import numpy as np
-from .plugin import Plugin
+from  .plugin import Plugin
 
 
 class RandomMonitor(Plugin):
