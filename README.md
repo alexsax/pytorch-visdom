@@ -1,5 +1,10 @@
 # Add a TF-slim like framework to PyTorch, to enable rapid research.
-## Also, bring the TensorBoard-like power of Visdom to PyTorch!
+### And bring the TensorBoard-like power of Visdom to PyTorch!
+
+## This code is now integrated into [TNT](https://github.com/pytorch/tnt)
+TNT is the 'official' framework for PyTorch and is expected to be merged into PyTorch itself. I'll push updates with new features directly to TNT.
+
+---
 
 ## Sample
 Visdom is a powerful and flexible platform for visualizing data, from FB. It fulfills much the same role as tensorboard, and is simple to use. 
