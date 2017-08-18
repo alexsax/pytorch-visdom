@@ -53,4 +53,4 @@ This repo contains a collection of tools for easily logging to Visdom, and for r
  - [TNT](http://github.com/PyTorch/tnt)
  - [TorchSample](http://github.com/ncullen93/torchsample)
  
- Also available is [Inferno](https://github.com/nasimrahaman/inferno) which is under active development.
+ Also consider [Inferno](https://github.com/nasimrahaman/inferno) which is new and under heavy active development.
